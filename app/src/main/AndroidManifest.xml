@@ -4,7 +4,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:allowBackup="false" android:usesCleartextTraffic="true" android:theme="@style/AppTheme" android:icon="@drawable/wlt_icon" android:label="XXU 抢座">
         <activity android:name=".SeatMapActivity" android:exported="false" android:label="七楼北座位图" />
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".MainActivity" android:exported="false" />
+        <activity android:name=".LoginActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
