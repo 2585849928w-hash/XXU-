@@ -15,6 +15,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
 
 /** A small native Android client. It does not contain credentials or a preconfigured seat. */
 public final class MainActivity extends Activity {
@@ -31,7 +32,7 @@ public final class MainActivity extends Activity {
     box.setPadding(36, 36, 36, 36);
     ScrollView scroll = new ScrollView(this); scroll.addView(box); setContentView(scroll);
     TextView title = new TextView(this); title.setText("XXU 图书馆抢座"); title.setTextSize(24); box.addView(title);
-    TextView note = new TextView(this); note.setText("仅供本人按学校规则使用。定时模式请保持 App 打开、联网且关闭电池优化。密码不会写入源码。\n"); box.addView(note);
+    TextView note = new TextView(this); note.setText("仅供本人按学校规则使用。定时模式请保持 App 打开、联网且关闭电池优化。密码会通过本机 Android Keystore 加密保存。\n"); box.addView(note);
     user = field(box, "学号"); pass = field(box, "统一认证密码"); pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
     floor = field(box, "楼层（例如：七楼）"); seats = field(box, "座位号（优先顺序，用英文逗号分隔）");
     day = field(box, "预约日期 YYYY-M-D（留空＝明天）"); time = field(box, "开抢时间 HH:MM:SS（留空＝立即）");
@@ -41,8 +42,11 @@ public final class MainActivity extends Activity {
     load(); map.setOnClickListener(v -> startActivity(new android.content.Intent(this, SeatMapActivity.class))); run.setOnClickListener(v -> begin());
   }
   private EditText field(LinearLayout b, String hint) { EditText x = new EditText(this); x.setHint(hint); x.setSingleLine(true); b.addView(x); return x; }
-  private void load() { android.content.SharedPreferences p=getSharedPreferences("settings",0); user.setText(p.getString("u", "")); floor.setText(p.getString("f", "七楼")); seats.setText(p.getString("s", "")); time.setText(p.getString("t", "")); }
-  private void save() { getSharedPreferences("settings",0).edit().putString("u",user.getText().toString().trim()).putString("f",floor.getText().toString().trim()).putString("s",seats.getText().toString().trim()).putString("t",time.getText().toString().trim()).apply(); }
+  private void load() { android.content.SharedPreferences p=getSharedPreferences("settings",0); user.setText(p.getString("u", "")); floor.setText(p.getString("f", "七楼")); seats.setText(p.getString("s", "")); time.setText(p.getString("t", "")); try { String saved=p.getString("p", ""); if(!saved.isEmpty()) pass.setText(decryptPassword(saved)); } catch(Exception ignored) {} }
+  private void save() { try { getSharedPreferences("settings",0).edit().putString("u",user.getText().toString().trim()).putString("p",encryptPassword(pass.getText().toString())).putString("f",floor.getText().toString().trim()).putString("s",seats.getText().toString().trim()).putString("t",time.getText().toString().trim()).apply(); } catch(Exception e) { Toast.makeText(this,"无法加密保存密码",Toast.LENGTH_LONG).show(); } }
+  private SecretKey passwordKey() throws Exception { KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null); Key existing=store.getKey("xxu_seat_password",null);if(existing instanceof SecretKey)return (SecretKey)existing; javax.crypto.KeyGenerator generator=javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore");generator.init(new android.security.keystore.KeyGenParameterSpec.Builder("xxu_seat_password",android.security.keystore.KeyProperties.PURPOSE_ENCRYPT|android.security.keystore.KeyProperties.PURPOSE_DECRYPT).setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE).build());return generator.generateKey(); }
+  private String encryptPassword(String plain) throws Exception { byte[] iv=new byte[12];new SecureRandom().nextBytes(iv);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,passwordKey(),new javax.crypto.spec.GCMParameterSpec(128,iv));return android.util.Base64.encodeToString(iv,android.util.Base64.NO_WRAP)+":"+android.util.Base64.encodeToString(cipher.doFinal(plain.getBytes("UTF-8")),android.util.Base64.NO_WRAP); }
+  private String decryptPassword(String value) throws Exception { String[] parts=value.split(":",2);if(parts.length!=2)throw new Exception("invalid encrypted password");Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,passwordKey(),new javax.crypto.spec.GCMParameterSpec(128,android.util.Base64.decode(parts[0],android.util.Base64.NO_WRAP)));return new String(cipher.doFinal(android.util.Base64.decode(parts[1],android.util.Base64.NO_WRAP)),"UTF-8"); }
   private void say(String s) { runOnUiThread(() -> { log.append(s+"\n"); ((ScrollView)log.getParent().getParent()).fullScroll(View.FOCUS_DOWN); }); }
   private void begin() {
     String u=user.getText().toString().trim(), p=pass.getText().toString(), f=floor.getText().toString().trim(), ss=seats.getText().toString().trim();
