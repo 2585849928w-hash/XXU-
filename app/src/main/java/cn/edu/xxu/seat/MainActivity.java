@@ -35,9 +35,10 @@ public final class MainActivity extends Activity {
     user = field(box, "学号"); pass = field(box, "统一认证密码"); pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
     floor = field(box, "楼层（例如：七楼）"); seats = field(box, "座位号（优先顺序，用英文逗号分隔）");
     day = field(box, "预约日期 YYYY-M-D（留空＝明天）"); time = field(box, "开抢时间 HH:MM:SS（留空＝立即）");
+    Button map = new Button(this); map.setText("查看七楼北座位图"); box.addView(map);
     run = new Button(this); run.setText("开始"); box.addView(run);
     log = new TextView(this); log.setTextIsSelectable(true); log.setTextSize(13); box.addView(log);
-    load(); run.setOnClickListener(v -> begin());
+    load(); map.setOnClickListener(v -> startActivity(new android.content.Intent(this, SeatMapActivity.class))); run.setOnClickListener(v -> begin());
   }
   private EditText field(LinearLayout b, String hint) { EditText x = new EditText(this); x.setHint(hint); x.setSingleLine(true); b.addView(x); return x; }
   private void load() { android.content.SharedPreferences p=getSharedPreferences("settings",0); user.setText(p.getString("u", "")); floor.setText(p.getString("f", "七楼")); seats.setText(p.getString("s", "")); time.setText(p.getString("t", "")); }
