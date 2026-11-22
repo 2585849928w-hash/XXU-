@@ -23,6 +23,7 @@ public final class MainActivity extends Activity {
   private TextView log;
   private Button run;
   private PowerManager.WakeLock wakeLock;
+  private boolean rememberPassword;
   private static final String BASE = "http://211.84.163.219:85";
   private static final String CAS = "https://cas.xxu.edu.cn/cas";
   private static final String PREFS = "settings", PASSWORD_KEY = "xxu_seat_password";
@@ -33,8 +34,9 @@ public final class MainActivity extends Activity {
     box.setPadding(36, 36, 36, 36);
     ScrollView scroll = new ScrollView(this); scroll.addView(box); setContentView(scroll);
     TextView title = new TextView(this); title.setText("XXU 图书馆抢座"); title.setTextSize(24); box.addView(title);
-    TextView note = new TextView(this); note.setText("仅供本人按学校规则使用。定时模式请保持 App 打开、联网且关闭电池优化。密码会通过本机 Android Keystore 加密保存。\n"); box.addView(note);
+    TextView note = new TextView(this); note.setText("仅供本人按学校规则使用。定时模式请保持 App 打开、联网且关闭电池优化。\n"); box.addView(note);
     user = new EditText(this); pass = new EditText(this); pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    user.setText(getIntent().getStringExtra("username")); pass.setText(getIntent().getStringExtra("password")); rememberPassword=getIntent().getBooleanExtra("remember",rememberLogin(this));
     floor = field(box, "楼层（例如：七楼）"); seats = field(box, "座位号（优先顺序，用英文逗号分隔）");
     day = field(box, "预约日期 YYYY-M-D（留空＝明天）"); time = field(box, "开抢时间 HH:MM:SS（留空＝立即）");
     Button account = new Button(this); account.setText("切换账号"); box.addView(account);
@@ -45,10 +47,12 @@ public final class MainActivity extends Activity {
   }
   private EditText field(LinearLayout b, String hint) { EditText x = new EditText(this); x.setHint(hint); x.setSingleLine(true); b.addView(x); return x; }
   private void load() { android.content.SharedPreferences p=getSharedPreferences(PREFS,0); if(user.getText().length()==0)user.setText(p.getString("u", "")); if(pass.getText().length()==0)pass.setText(savedPassword(this)); floor.setText(p.getString("f", "七楼")); seats.setText(p.getString("s", "")); time.setText(p.getString("t", "")); }
-  private void save() { if(!saveLogin(this,user.getText().toString().trim(),pass.getText().toString()))Toast.makeText(this,"无法加密保存密码",Toast.LENGTH_LONG).show(); getSharedPreferences(PREFS,0).edit().putString("f",floor.getText().toString().trim()).putString("s",seats.getText().toString().trim()).putString("t",time.getText().toString().trim()).apply(); }
+  private void save() { if(rememberPassword)saveLogin(this,user.getText().toString().trim(),pass.getText().toString());else clearRememberedLogin(this); getSharedPreferences(PREFS,0).edit().putString("f",floor.getText().toString().trim()).putString("s",seats.getText().toString().trim()).putString("t",time.getText().toString().trim()).apply(); }
   static String savedUser(android.content.Context c){return c.getSharedPreferences(PREFS,0).getString("u","");}
-  static String savedPassword(android.content.Context c){try{String value=c.getSharedPreferences(PREFS,0).getString("p","");return value.isEmpty()?"":decryptPassword(value);}catch(Exception e){return "";}}
-  static boolean saveLogin(android.content.Context c,String username,String password){try{c.getSharedPreferences(PREFS,0).edit().putString("u",username).putString("p",encryptPassword(password)).apply();return true;}catch(Exception first){try{passwordKey(true);c.getSharedPreferences(PREFS,0).edit().putString("u",username).putString("p",encryptPassword(password)).apply();return true;}catch(Exception ignored){return false;}}}
+  static String savedPassword(android.content.Context c){android.content.SharedPreferences p=c.getSharedPreferences(PREFS,0);return p.getBoolean("remember",false)&&"plain_v1".equals(p.getString("p_format",""))?p.getString("p",""):"";}
+  static boolean rememberLogin(android.content.Context c){return c.getSharedPreferences(PREFS,0).getBoolean("remember",false);}
+  static boolean saveLogin(android.content.Context c,String username,String password){c.getSharedPreferences(PREFS,0).edit().putString("u",username).putString("p",password).putString("p_format","plain_v1").putBoolean("remember",true).apply();return true;}
+  static void clearRememberedLogin(android.content.Context c){c.getSharedPreferences(PREFS,0).edit().remove("p").remove("p_format").putBoolean("remember",false).apply();}
   private static SecretKey passwordKey(boolean renew) throws Exception { KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);if(!renew){Key existing=store.getKey(PASSWORD_KEY,null);if(existing instanceof SecretKey)return (SecretKey)existing;}if(store.containsAlias(PASSWORD_KEY))store.deleteEntry(PASSWORD_KEY);javax.crypto.KeyGenerator generator=javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore");generator.init(new android.security.keystore.KeyGenParameterSpec.Builder(PASSWORD_KEY,android.security.keystore.KeyProperties.PURPOSE_ENCRYPT|android.security.keystore.KeyProperties.PURPOSE_DECRYPT).setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE).build());return generator.generateKey(); }
   private static String encryptPassword(String plain) throws Exception { byte[] iv=new byte[12];new SecureRandom().nextBytes(iv);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,passwordKey(false),new javax.crypto.spec.GCMParameterSpec(128,iv));return android.util.Base64.encodeToString(iv,android.util.Base64.NO_WRAP)+":"+android.util.Base64.encodeToString(cipher.doFinal(plain.getBytes("UTF-8")),android.util.Base64.NO_WRAP); }
   private static String decryptPassword(String value) throws Exception { String[] parts=value.split(":",2);if(parts.length!=2)throw new Exception("invalid encrypted password");Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,passwordKey(false),new javax.crypto.spec.GCMParameterSpec(128,android.util.Base64.decode(parts[0],android.util.Base64.NO_WRAP)));return new String(cipher.doFinal(android.util.Base64.decode(parts[1],android.util.Base64.NO_WRAP)),"UTF-8"); }

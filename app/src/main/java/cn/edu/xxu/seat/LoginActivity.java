@@ -13,6 +13,7 @@ import android.widget.*;
 public final class LoginActivity extends Activity {
   private EditText username, password;
   private Button login;
+  private CheckBox remember;
   private TextView hint;
 
   @Override public void onCreate(Bundle state) {
@@ -24,11 +25,12 @@ public final class LoginActivity extends Activity {
     Space gap=new Space(this);root.addView(gap,new LinearLayout.LayoutParams(1,44));
     username=field(root,"学号");password=field(root,"统一认证密码");password.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
     username.setText(MainActivity.savedUser(this));password.setText(MainActivity.savedPassword(this));
+    remember=new CheckBox(this);remember.setText("记住密码");remember.setChecked(MainActivity.rememberLogin(this));root.addView(remember,new LinearLayout.LayoutParams(-1,-2));
     login=new Button(this);login.setText("登录并进入");root.addView(login,new LinearLayout.LayoutParams(-1,-2));
     hint=new TextView(this);hint.setGravity(Gravity.CENTER);hint.setPadding(0,24,0,0);root.addView(hint,new LinearLayout.LayoutParams(-1,-2));
-    TextView privacy=new TextView(this);privacy.setText("账号和密码仅保存于本机，并使用 Android Keystore 加密。");privacy.setTextSize(12);privacy.setGravity(Gravity.CENTER);privacy.setPadding(0,48,0,0);root.addView(privacy,new LinearLayout.LayoutParams(-1,-2));
+    TextView privacy=new TextView(this);privacy.setText("勾选“记住密码”后，密码只保存在本 App 的私有数据区，不会上传。 ");privacy.setTextSize(12);privacy.setGravity(Gravity.CENTER);privacy.setPadding(0,48,0,0);root.addView(privacy,new LinearLayout.LayoutParams(-1,-2));
     login.setOnClickListener(v -> signIn());
   }
   private EditText field(LinearLayout root,String title){EditText e=new EditText(this);e.setHint(title);e.setSingleLine(true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=20;root.addView(e,p);return e;}
-  private void signIn(){String u=username.getText().toString().trim(),p=password.getText().toString();if(u.isEmpty()||p.isEmpty()){hint.setText("请输入学号和密码");return;}login.setEnabled(false);hint.setText("正在验证登录…");new Thread(()->{try{new MainActivity.Client().login(u,p);if(!MainActivity.saveLogin(this,u,p))throw new Exception("无法加密保存密码");runOnUiThread(()->{startActivity(new Intent(this,MainActivity.class));finish();});}catch(Exception e){runOnUiThread(()->{hint.setText("登录失败："+e.getMessage());login.setEnabled(true);});}}).start();}
+  private void signIn(){String u=username.getText().toString().trim(),p=password.getText().toString();boolean save=remember.isChecked();if(u.isEmpty()||p.isEmpty()){hint.setText("请输入学号和密码");return;}login.setEnabled(false);hint.setText("正在验证登录…");new Thread(()->{try{new MainActivity.Client().login(u,p);if(save)MainActivity.saveLogin(this,u,p);else MainActivity.clearRememberedLogin(this);runOnUiThread(()->{Intent next=new Intent(this,MainActivity.class);next.putExtra("username",u);next.putExtra("password",p);next.putExtra("remember",save);startActivity(next);finish();});}catch(Exception e){runOnUiThread(()->{hint.setText("登录失败："+e.getMessage());login.setEnabled(true);});}}).start();}
 }
