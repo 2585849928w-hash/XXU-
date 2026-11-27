@@ -73,12 +73,13 @@ public final class MainActivity extends Activity {
     JSONArray floors=c.getArray(BASE+"/api.php/v3areas/1", "data.list.childArea"); JSONObject fl=null; for(int i=0;i<floors.length();i++){JSONObject x=floors.getJSONObject(i);if(floorName.equals(x.optString("name"))){fl=x;break;}} if(fl==null)throw new Exception("未找到楼层："+floorName);
     int floorId=fl.getInt("id"); String segment=c.segment(floorId,day); JSONArray areas=c.getArray(BASE+"/api.php/v3areas/"+floorId,"data.list.childArea"); if(areas.length()==0){areas=new JSONArray();areas.put(fl);}
     String[] choices=wanted.split(","); ArrayList<Target> targets=new ArrayList<>();
-    for(int ai=0;ai<areas.length();ai++){JSONObject ar=areas.getJSONObject(ai);int areaId=ar.getInt("id");JSONArray list=c.getArray(BASE+"/api.php/spaces_old?area="+areaId+"&segment="+URLEncoder.encode(segment,"UTF-8")+"&day="+URLEncoder.encode(day,"UTF-8")+"&startTime=08%3A00&endTime=21%3A45","data.list");for(String choose:choices)for(int i=0;i<list.length();i++){JSONObject s=list.getJSONObject(i);String no=s.optString("no",s.optString("name"));if(choose.trim().equals(no)&&!contains(targets,s.getInt("id")))targets.add(new Target(s.getInt("id"),areaId,no));}}
+    for(int ai=0;ai<areas.length();ai++){JSONObject ar=areas.getJSONObject(ai);int areaId=ar.getInt("id");JSONArray list=c.getArray(BASE+"/api.php/spaces_old?area="+areaId+"&segment="+URLEncoder.encode(segment,"UTF-8")+"&day="+URLEncoder.encode(day,"UTF-8")+"&startTime=08%3A00&endTime=21%3A45","data.list");for(String choose:choices)for(int i=0;i<list.length();i++){JSONObject s=list.getJSONObject(i);String no=s.optString("no").trim(),name=s.optString("name").trim(),wantedNo=trimZeros(choose.trim());if((choose.trim().equals(no)||choose.trim().equals(name)||wantedNo.equals(trimZeros(no))||wantedNo.equals(trimZeros(name)))&&!contains(targets,s.getInt("id")))targets.add(new Target(s.getInt("id"),areaId,no.isEmpty()?name:no));}}
     if(targets.isEmpty())throw new Exception("指定座位均未找到或不可预约"); if(target!=null&&target.getTimeInMillis()>System.currentTimeMillis())waitUntil(target,"开抢时间已到，开始提交…"); say("开始尝试："+targets.size()+" 个座位"); long end=System.currentTimeMillis()+180000;
     while(System.currentTimeMillis()<end) for(Target t:targets){JSONObject result=c.book(t,segment,day);if(result.optInt("status")==1){say("成功："+t.no+"，"+result.optString("msg"));return;}say("未成功："+t.no+" - "+result.optString("msg"));Thread.sleep(500);}
     say("3 分钟内未预约成功。");
   }
   private boolean contains(ArrayList<Target> a,int id){for(Target t:a)if(t.id==id)return true;return false;}
+  private static String trimZeros(String value){String result=value.replaceFirst("^0+(?!$)","");return result.isEmpty()?"0":result;}
   static final class Target{int id,area;String no;Target(int i,int a,String n){id=i;area=a;no=n;}}
 
   static final class Client {
